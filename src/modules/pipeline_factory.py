@@ -1,7 +1,12 @@
 import numpy as np
 import optuna
-from sklearn.base import (BaseEstimator, RegressorMixin, check_array,
-                          check_is_fitted, check_X_y)
+from sklearn.base import (
+    BaseEstimator,
+    RegressorMixin,
+    check_array,
+    check_is_fitted,
+    check_X_y,
+)
 from sklearn.ensemble import RandomForestRegressor, VotingRegressor
 from sklearn.linear_model import LinearRegression, SGDRegressor
 from sklearn.neural_network import MLPRegressor
@@ -12,13 +17,70 @@ from xgboost import XGBRegressor
 
 from modules.config import Config
 
+from .objectives import get_xgb_objective
+
+
+def _insert_onehot_encoder(pipeline, categorical=True, wrap=True):
+    if categorical:
+        ohe = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+        pipeline.insert(1, ("onehot", ohe))
+
+    if wrap:
+        return Pipeline(pipeline).set_output(transform="pandas")
+    else:
+        return pipeline
+
+
+def get_linreg_pipeline(params=None, categorical=False):
+    params = params or {}
+    pipeline = [("scaler", StandardScaler()), ("regressor", LinearRegression(**params))]
+    return _insert_onehot_encoder(pipeline, categorical)
+
+
+def get_svr_pipeline(params=None, categorical=False):
+    params = params or {}
+    pipeline = [("scaler", StandardScaler()), ("regressor", SVR(**params))]
+    return _insert_onehot_encoder(pipeline, categorical)
+
+
+def get_rf_pipeline(params=None, categorical=False):
+    params = params or {}
+    pipeline = [("regressor", RandomForestRegressor(**params))]
+    return _insert_onehot_encoder(pipeline, categorical)
+
+
+def get_xgb_pipeline(params=None, categorical=False, objective="smape"):
+    params = params or {}
+    objective = get_xgb_objective(objective)
+    pipeline = [
+        (
+            "regressor",
+            XGBRegressor(obj=objective, enable_categorical=categorical, **params),
+        )
+    ]
+    return Pipeline(pipeline).set_output(transform="pandas")
+
+
+def get_nn_pipeline(params=None, categorical=False):
+    params = params or {}
+    pipeline = [("scaler", MinMaxScaler()), ("regressor", MLPRegressor(**params))]
+    return _insert_onehot_encoder(pipeline, categorical)
+
+
+def get_sgdr_pipeline(params=None, categorical=False):
+    params = params or {}
+    pipeline = [("scaler", StandardScaler()), ("regressor", SGDRegressor(**params))]
+    return _insert_onehot_encoder(pipeline, categorical)
+
 
 class PipelineFactory:
     def __init__(self, config: Config):
         self.config = config
 
     def create(self, params=None):
-        raise NotImplementedError
+        if params is None:
+            return {}
+        return params.copy()
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -37,29 +99,14 @@ class LinearRegressionPipelineFactory(PipelineFactory):
         super().__init__(config)
 
     def create(self, params=None):
-        params = params or {}
+        params_ = super().create(params)
 
-        if "random_state" in params:
-            params.pop("random_state")
+        if "random_state" in params_:
+            params_.pop("random_state")
 
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("regressor", LinearRegression(**params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("scaler", StandardScaler()),
-                    ("regressor", LinearRegression(**params)),
-                ]
-            ).set_output(transform="pandas")
+        return get_linreg_pipeline(
+            params_, categorical=self.config.age_days_as_categorical
+        )
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -81,27 +128,10 @@ class SVRPipelineFactory(PipelineFactory):
         super().__init__(config)
 
     def create(self, params=None):
-        if "random_state" in params:
-            params.pop("random_state")
-
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("regressor", SVR(**params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("scaler", StandardScaler()),
-                    ("regressor", SVR(**params)),
-                ]
-            ).set_output(transform="pandas")
+        params_ = super().create(params)
+        return get_svr_pipeline(
+            params_, categorical=self.config.age_days_as_categorical
+        )
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -126,24 +156,8 @@ class RFRegressionPipelineFactory(PipelineFactory):
         super().__init__(config)
 
     def create(self, params=None):
-        params = params or {}
-
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("regressor", RandomForestRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("regressor", RandomForestRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
+        params_ = super().create(params)
+        return get_rf_pipeline(params_, categorical=self.config.age_days_as_categorical)
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -162,45 +176,17 @@ class RFRegressionPipelineFactory(PipelineFactory):
 
 
 class XGBRegressionPipelineFactory(PipelineFactory):
-    def __init__(self, config):
+    def __init__(self, config, objective=None):
         super().__init__(config)
-
-    def mape_objective(self, y_true, y_pred):
-        grad = np.sign(y_pred - y_true) / (y_true * len(y_true))
-        hess = np.zeros_like(y_true)
-        return grad, hess
-
-    def smape_objective(self, y_true, y_pred):
-        grad = np.sign(y_pred - y_true) / np.abs(y_true + y_pred)
-        grad -= np.abs(y_true - y_pred) / np.square(y_true + y_pred)
-        grad /= len(y_true)
-
-        hess = 2 * (10000.0 * (y_pred == y_true)) / np.abs(y_true + y_pred)
-        hess += 2.0 * np.abs(y_true - y_pred) / np.abs(y_true + y_pred) ** 3
-        hess += 2.0 * np.sign(y_true - y_pred) / np.square(y_true + y_pred)
-        hess /= len(y_true)
-
-        return grad, hess
+        self.objective = objective
 
     def create(self, params=None):
-        params = params or {}
-
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("regressor", XGBRegressor(obj=self.smape_objective, **params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("regressor", XGBRegressor(obj=self.smape_objective, **params)),
-                ]
-            ).set_output(transform="pandas")
+        params_ = super().create(params)
+        return get_xgb_pipeline(
+            params_,
+            categorical=self.config.age_days_as_categorical,
+            objective=self.objective
+        )
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -221,26 +207,8 @@ class NNRegressionPipelineFactory(PipelineFactory):
         super().__init__(config)
 
     def create(self, params=None):
-        params = params or {}
-
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("scaler", MinMaxScaler()),
-                    ("regressor", MLPRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("scaler", StandardScaler()),
-                    ("regressor", MLPRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
+        params_ = super().create(params)
+        return get_nn_pipeline(params_, categorical=self.config.age_days_as_categorical)
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -269,26 +237,10 @@ class SGDRegressionPipelineFactory(PipelineFactory):
         super().__init__(config)
 
     def create(self, params=None):
-        params = params or {}
-
-        if not self.config.age_days_as_categorical:
-            return Pipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("regressor", SGDRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            return Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("scaler", StandardScaler()),
-                    ("regressor", SGDRegressor(**params)),
-                ]
-            ).set_output(transform="pandas")
+        params_ = super().create(params)
+        return get_sgdr_pipeline(
+            params_, categorical=self.config.age_days_as_categorical
+        )
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
@@ -296,9 +248,7 @@ class SGDRegressionPipelineFactory(PipelineFactory):
         params.update(
             {
                 "loss": trial.suggest_categorical("loss", ["squared_error"]),
-                "penalty": trial.suggest_categorical(
-                    "penalty", ["l2", "l1", "elasticnet"]
-                ),
+                "penalty": trial.suggest_categorical("penalty", ["elasticnet"]),
                 "alpha": trial.suggest_loguniform("alpha", 1e-3, 1e0),
                 "l1_ratio": trial.suggest_loguniform("l1_ratio", 1e-3, 1e0),
                 "fit_intercept": trial.suggest_categorical(
@@ -321,7 +271,7 @@ class AdjustedEstimator(BaseEstimator, RegressorMixin):
         self.estimator.fit(X, y)
         self._is_fitted = True
         return self
-    
+
     def __sklearn_is_fitted__(self):
         return self._is_fitted
 
@@ -332,8 +282,9 @@ class AdjustedEstimator(BaseEstimator, RegressorMixin):
 
 
 class XGBoostLinregPipelineFactory(PipelineFactory):
-    def __init__(self, config):
+    def __init__(self, config, xgb_objective=None):
         super().__init__(config)
+        self.xgb_objective = xgb_objective
 
     def create(self, params=None):
         if params is None:
@@ -354,81 +305,55 @@ class XGBoostLinregPipelineFactory(PipelineFactory):
                 for k, v in params.items()
                 if not k.startswith("xgb_") and not k.startswith("sgd_")
             }
-            if 'weights_xgb' in params:
-                weights_xgb = params.pop('weights_xgb')
-                params['weights'] = [weights_xgb, 1.0 - weights_xgb]
+            if "weights_xgb" in params:
+                weights_xgb = params.pop("weights_xgb")
+                params["weights"] = [weights_xgb, 1.0 - weights_xgb]
 
-        if not self.config.age_days_as_categorical:
-            xgb = Pipeline(
-                [
-                    ("regressor", XGBRegressor(**xgb_params)),
-                ]
-            ).set_output(transform="pandas")
+        xgb_params.pop("age_days_as_categorical", None)
+        xgb_params.pop("use_height_as_feature", None)
 
-            sgd = Pipeline(
-                [
-                    ("scaler", StandardScaler()),
-                    ("regressor", SGDRegressor(**sgd_params)),
-                ]
-            ).set_output(transform="pandas")
-        else:
-            xgb = Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("regressor", XGBRegressor(**xgb_params)),
-                ]
-            ).set_output(transform="pandas")
+        sgd_params.pop("age_days_as_categorical", None)
+        sgd_params.pop("use_height_as_feature", None)
 
-            sgd = Pipeline(
-                [
-                    (
-                        "onehot",
-                        OneHotEncoder(handle_unknown="ignore", sparse_output=False),
-                    ),
-                    ("scaler", StandardScaler()),
-                    ("regressor", SGDRegressor(**sgd_params)),
-                ]
-            ).set_output(transform="pandas")
+        xgb = get_xgb_pipeline(
+            xgb_params,
+            categorical=self.config.age_days_as_categorical,
+            objective=self.xgb_objective
+        )
+        sgd = get_sgdr_pipeline(
+            sgd_params, categorical=self.config.age_days_as_categorical
+        )
 
         multiplier = params.pop("multiplier", 1.0)
         params.pop("random_state", None)
-        model = AdjustedEstimator(
-            estimator=VotingRegressor(estimators=[("xgb", xgb), ("sgd", sgd)], **params),
-            multiplier=multiplier,
-        )
 
+        estimator = VotingRegressor(estimators=[("xgb", xgb), ("sgd", sgd)], **params)
+        model = AdjustedEstimator(estimator=estimator, multiplier=multiplier)
         return model
 
     @classmethod
     def get_params(cls, trial: optuna.Trial):
         params = super().get_params(trial)
+
         params.update(
             {
                 "weights_xgb": trial.suggest_categorical(
-                    "weights_xgb", np.arange(0.7, 0.95, 0.05).round(2).tolist()
+                    "weights_xgb", np.arange(0.8, 0.95, 0.05).round(2).tolist()
                 ),
                 "multiplier": trial.suggest_categorical(
                     "multiplier", np.arange(1.0, 1.31, 0.01).round(2).tolist()
                 ),
-                "xgb_n_estimators": trial.suggest_int("xgb_n_estimators", 10, 100),
-                "xgb_max_depth": trial.suggest_int("xgb_max_depth", 2, 6),
-                "xgb_learning_rate": trial.suggest_loguniform(
-                    "xgb_learning_rate", 1e-3, 1e0
-                ),
-                "sgd_loss": trial.suggest_categorical("sgd_loss", ["squared_error"]),
-                "sgd_penalty": trial.suggest_categorical(
-                    "sgd_penalty", ["l2", "l1", "elasticnet"]
-                ),
-                "sgd_alpha": trial.suggest_loguniform("sgd_alpha", 1e-3, 1e0),
-                "sgd_l1_ratio": trial.suggest_loguniform("sgd_l1_ratio", 1e-3, 1e0),
-                "sgd_fit_intercept": trial.suggest_categorical(
-                    "sgd_fit_intercept", [True, False]
-                ),
             }
         )
+
+        xgb_params = XGBRegressionPipelineFactory.get_params(trial)
+        sgd_params = SGDRegressionPipelineFactory.get_params(trial)
+
+        for k, v in xgb_params.items():
+            params[f"xgb_{k}"] = v
+
+        for k, v in sgd_params.items():
+            params[f"sgd_{k}"] = v
 
         return params
 
