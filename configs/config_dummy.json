@@ -1,0 +1,13 @@
+{
+    "experiment_name": "test",
+    "data_path": "../datasets/dataset.csv",
+    "scheme_path": "../datasets/scheme.csv",
+    "algo": "lr",
+    "random_state": 42,
+    "use_height_as_feature": true,
+    "age_days_as_categorical": false,
+    "n_splits": 5,
+    "n_repeats": 10,
+    "n_trials": 3,
+    "log_model": false
+}

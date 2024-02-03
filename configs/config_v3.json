@@ -1,0 +1,26 @@
+{
+    "experiment_name": "v3",
+    "data_path": "../datasets/dataset.csv",
+    "scheme_path": "../datasets/scheme.csv",
+    "algo": "lr",
+    "random_state": 42,
+    "use_height_as_feature": true,
+    "age_days_as_categorical": false,
+    "n_splits": 5,
+    "n_repeats": 10,
+    "n_trials": 20,
+    "log_model": false,
+    "features": [
+        "age_days",
+        "diameter",
+        "height",
+        "fas",
+        "water",
+        "cement",
+        "slump",
+        "sikacim_pct",
+        "sikacim_kg",
+        "fine_aggregate_kg",
+        "coarse_aggregate_kg"
+    ]
+}
