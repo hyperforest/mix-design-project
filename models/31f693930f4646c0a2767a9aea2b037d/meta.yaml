@@ -1,0 +1,15 @@
+artifact_uri: file:///C:/Users/FLP-13-Rimba/Desktop/personal/projects/mix-design/src/mlruns/363696906707023921/31f693930f4646c0a2767a9aea2b037d/artifacts
+end_time: 1706988270441
+entry_point_name: ''
+experiment_id: '363696906707023921'
+lifecycle_stage: active
+run_id: 31f693930f4646c0a2767a9aea2b037d
+run_name: aged-rook-694
+run_uuid: 31f693930f4646c0a2767a9aea2b037d
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1706988267206
+status: 3
+tags: []
+user_id: FLP-13-Rimba
