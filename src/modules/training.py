@@ -13,7 +13,7 @@ def evaluate(model, X, y):
     y_pred = model.predict(X)
     ape = np.abs(y_pred - y) / y
     sape = np.abs(y_pred - y) / np.abs(y_pred + y)
-    num_underestimate = np.sum(y_pred < y)
+    num_underestimate = int(np.sum(y_pred < y))
     return {
         "avg_ape": np.mean(ape),
         "max_ape": np.max(ape),
@@ -112,11 +112,9 @@ def train(
 
     params = params or {}
     if "age_days_as_categorical" in params:
-        age_days_as_categorical = params.pop(  # noqa: F841
-            "age_days_as_categorical", None
-        )
+        params.pop("age_days_as_categorical", None)
     if "use_height_as_feature" in params:
-        use_height_as_feature = params.pop("use_height_as_feature", None)  # noqa: F841
+        params.pop("use_height_as_feature", None)
 
     pipeline = pipeline_factory.create(params=params)
 
