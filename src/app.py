@@ -9,8 +9,8 @@ from modules.config import Config
 
 title = "Mix Design Project"
 footer = """(c) 2024"""
-MODEL_DIR = "../models/31f693930f4646c0a2767a9aea2b037d/artifacts/model"
-CONFIG_DIR = "../configs/config_v7.json"
+MODEL_DIR = "models/31f693930f4646c0a2767a9aea2b037d/artifacts/model"
+CONFIG_DIR = "configs/config_v7.json"
 
 
 with open(CONFIG_DIR, "r") as file:
@@ -25,7 +25,7 @@ def main():
 
     model = mlflow.sklearn.load_model(MODEL_DIR)
 
-    sample_data = pd.read_csv("../datasets/sample_input.csv")
+    sample_data = pd.read_csv("datasets/sample_input.csv")
 
     st.markdown("## 📂 Prediksi banyak data sekaligus")
     with st.container():
