@@ -41,6 +41,8 @@ def main():
         config = Config(**json.load(f))
 
     config = override_config(config, args)
+    print("Config:")
+    print(json.dumps(config.__dict__, indent=4))
 
     # load data
     df_train, df_test = load_data(
@@ -52,7 +54,13 @@ def main():
     print(df_train.shape, df_test.shape)
 
     # start tuning
-    pipeline_factory = get_pipeline_factory(config.algo)(config)
+    if config.algo == "xgblr":
+        pipeline_factory = get_pipeline_factory(config.algo)(
+            config, xgb_objective="smape"
+        )
+    else:
+        pipeline_factory = get_pipeline_factory(config.algo)(config)
+
     objective = get_objective_func(
         X_train=X_train,
         y_train=y_train,
