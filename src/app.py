@@ -7,7 +7,7 @@ import streamlit as st
 
 from modules.config import Config
 
-title = "Concrete Compressive Strength Prediction for Specific Ages with β-SNF Admixture"
+title = "Concrete Compressive Strength Prediction for Specific Ages with Modified SNF Admixture"
 footer = """(c) 2024"""
 MODEL_DIR = "models/31f693930f4646c0a2767a9aea2b037d/artifacts/model"
 CONFIG_DIR = "configs/config_v7.json"
@@ -92,7 +92,7 @@ def main():
             "Coarse aggregates (kg)", min_value=None, max_value=None, value=1072.0
         )
         sikacim = form.number_input(
-            "β-SNF Admixture (kg)", min_value=None, max_value=None, value=0.0
+            "Modified SNF Admixture (kg)", min_value=None, max_value=None, value=0.0
         )
 
         fas = water / cement
