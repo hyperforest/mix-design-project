@@ -1,4 +1,4 @@
-sample_no,age_days,diameter,height,water,cement,sikacim_kg,fine_aggregate_kg,coarse_aggregate_kg
-0,28,151.28,302.7,205,408,0.0,715,1072
-1,28,150.38,305.0,205,408,0.816,715,1072
-2,3,150.28,300.5,205,408,4.488,715,1072
+sample_no,age_days,water,cement,sikacim_kg,fine_aggregate_kg,coarse_aggregate_kg
+0,28,205,408,0.0,715,1072
+1,28,205,408,0.816,715,1072
+2,3,205,408,4.488,715,1072
