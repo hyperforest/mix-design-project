@@ -7,7 +7,7 @@ import streamlit as st
 
 from modules.config import Config
 
-title = "Concrete Compressive Strength Prediction for Specific Ages with Modified SNF Admixture"
+title = "Concrete Compressive Strength Prediction for Specific Ages with Modified SNF Admixture (Beta version) for 1 m3 Concrete"
 footer = """(c) [2024](https://github.com/hyperforest/)"""
 MODEL_DIR = "models/31f693930f4646c0a2767a9aea2b037d/artifacts/model"
 CONFIG_DIR = "configs/config_v7.json"
@@ -80,53 +80,64 @@ def main():
         form = st.form("Input Data")
 
         age = form.number_input(
-            "Concrete age (days)", min_value=1, max_value=None, value=1
+            "Concrete age (days)", min_value=None, max_value=None, value=1
         )
         water = form.number_input(
-            "Water content (L)", min_value=0.0, max_value=None, value=205.0
+            "Water content (L)", min_value=None, max_value=None, value=205.0
         )
         cement = form.number_input(
-            "Cement content (kg)", min_value=1.0, max_value=None, value=408.0
+            "Cement content (kg)", min_value=None, max_value=None, value=408.0
         )
         fine_aggregate = form.number_input(
-            "Fine aggregates (kg)", min_value=0.0, max_value=None, value=715.0
+            "Fine aggregates (kg)", min_value=None, max_value=None, value=715.0
         )
         coarse_aggregate = form.number_input(
-            "Coarse aggregates (kg)", min_value=0.0, max_value=None, value=1072.0
+            "Coarse aggregates (kg)", min_value=None, max_value=None, value=1072.0
         )
         sikacim = form.number_input(
-            "Modified SNF Admixture (kg)",
-            min_value=0.0,
-            max_value=None,
-            value=0.0,
+            "Modified SNF Admixture (kg)", min_value=None, max_value=None, value=0.0,
         )
 
         diameter, height = 150.0, 300.0
         fas = water / cement
         area = np.pi * (diameter / 2) ** 2
 
-        data = {
-            "age_days": age,
-            "cement": cement,
-            "water": water,
-            "fas": fas,
-            "fine_aggregate_kg": fine_aggregate,
-            "coarse_aggregate_kg": coarse_aggregate,
-            "sikacim_kg": sikacim,
-            "fas_kg": fas,
-            "diameter": diameter,
-            "height": height,
-        }
-
         submit_indiv = form.form_submit_button("Predict", use_container_width=True)
 
         if submit_indiv:
-            data = pd.Series(data).to_frame(name=0).T
-            pred_kN = model.predict(data[config.features])[0]
-            pred_MPa = 1000 * pred_kN / area
+            if not (1 <= age <= 28):
+                st.error("Data out of simulation: age must be between 1 and 28 days")
+            elif not (164 <= water <= 205):
+                st.error("Data out of simulation: water content must be between 164 and 205 L")
+            elif not (327 <= cement <= 440):
+                st.error("Data out of simulation: cement content must be between 327 and 440 kg")
+            elif not (715 <= fine_aggregate <= 764):
+                st.error("Data out of simulation: fine aggregates must be between 715 and 764 kg")
+            elif not (1072 <= coarse_aggregate <= 1146):
+                st.error("Data out of simulation: coarse aggregates must be between 1072 and 1146 kg")
+            elif not ((0 <= sikacim) and (sikacim <= 0.02 * cement)):
+                max_lim = 0.02 * cement
+                st.error(f"SNF dose exceeds the maximum allowance (2% of cement mass = {max_lim:.2f} kg)")
+            else:
+                data = {
+                    "age_days": age,
+                    "cement": cement,
+                    "water": water,
+                    "fas": fas,
+                    "fine_aggregate_kg": fine_aggregate,
+                    "coarse_aggregate_kg": coarse_aggregate,
+                    "sikacim_kg": sikacim,
+                    "fas_kg": fas,
+                    "diameter": diameter,
+                    "height": height,
+                }
 
-            text = f"Predicted maximum load: {pred_MPa:.2f} MPa ({pred_kN:.2f} kN)"
-            st.success(text)
+                data = pd.Series(data).to_frame(name=0).T
+                pred_kN = model.predict(data[config.features])[0]
+                pred_MPa = 1000 * pred_kN / area
+
+                text = f"Predicted maximum load: {pred_MPa:.2f} MPa ({pred_kN:.2f} kN)"
+                st.success(text)
 
     st.write(footer)
 
