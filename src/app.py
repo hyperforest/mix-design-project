@@ -17,6 +17,25 @@ with open(CONFIG_DIR, "r") as file:
     config = Config(**json.load(file))
 
 
+def predict_slump(data):
+    water = data["water"]
+    cement = data["cement"]
+    fas = water / cement
+    kg_sikacim = data["sikacim_kg"]
+
+    slump = (
+        8201.63 * fas +
+        0.88 * water +
+        -0.91 * kg_sikacim +
+        -11872.59 * np.log1p(fas) +
+        -109.83 * np.log1p(water) +
+        11.01 * np.log1p(kg_sikacim) +
+        1123.07
+    )
+
+    return slump
+
+
 def main():
     st.set_page_config(layout="centered", page_icon="🪨", page_title=title)
     st.title(title)
@@ -59,11 +78,12 @@ def main():
             pred_kN = model.predict(data[config.features])
             pred_MPa = 1000 * pred_kN / data["area"]
 
-            data["prediction (kN)"] = pred_kN.round(2)
-            data["prediction (MPa)"] = pred_MPa.round(2)
+            data["predicted_max_load (kN)"] = pred_kN.round(2)
+            data["predicted_max_load (MPa)"] = pred_MPa.round(2)
+            data["predicted_slump (cm)"] = data.apply(predict_slump, axis=1).round(2)
 
             top_n = min(5, len(data))
-            st.success(f"Top {top_n} rows of prediction")
+            st.success(f"Prediction success! Here is the top {top_n} rows of the result:")
             st.dataframe(data.head(top_n))
 
             # click to download
@@ -135,9 +155,17 @@ def main():
                 data = pd.Series(data).to_frame(name=0).T
                 pred_kN = model.predict(data[config.features])[0]
                 pred_MPa = 1000 * pred_kN / area
+                pred_slump = predict_slump(data.iloc[0])
 
-                text = f"Predicted maximum load: {pred_MPa:.2f} MPa ({pred_kN:.2f} kN)"
-                st.success(text)
+                st.success("Prediction success!")
+
+                text = f'''
+                Prediction result:
+
+                - Maximum load: {pred_MPa:.2f} MPa ({pred_kN:.2f} kN)                
+                - Slump: {pred_slump:.2f} cm
+                '''
+                st.markdown(text)
 
     st.write(footer)
 
