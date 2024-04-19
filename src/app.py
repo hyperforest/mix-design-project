@@ -24,13 +24,13 @@ def predict_slump(data):
     kg_sikacim = data["sikacim_kg"]
 
     slump = (
-        8201.63 * fas +
-        0.88 * water +
-        -0.91 * kg_sikacim +
-        -11872.59 * np.log1p(fas) +
-        -109.83 * np.log1p(water) +
-        11.01 * np.log1p(kg_sikacim) +
-        1123.07
+        57.34 * fas +
+        0.26 * water +
+        0.96 * kg_sikacim +
+        0.00 * np.log1p(fas) +
+        0.00 * np.log1p(water) +
+        3.79 * np.log1p(kg_sikacim) +
+        -73.48
     )
 
     return slump
